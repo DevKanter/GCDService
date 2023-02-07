@@ -16,7 +16,7 @@ namespace GCDService.Managers.Session
             AccountID = accountID;
 
             CreationTime = DateTime.UtcNow;
-            EndTime = DateTime.UtcNow.AddMinutes(5);
+            EndTime = DateTime.UtcNow.AddMinutes(10);
             OnCreate();
         }
         public void OnCreate()
@@ -27,6 +27,10 @@ namespace GCDService.Managers.Session
         {
             PermissionManager.UnloadPermission(AccountID);
             State = SessionState.EXPIRED;
+        }
+        public void OnLogin()
+        {
+            State = SessionState.CONNECTED;
         }
     }
     public enum SessionState

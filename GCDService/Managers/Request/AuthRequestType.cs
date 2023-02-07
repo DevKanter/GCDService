@@ -6,5 +6,6 @@
         LOGIN,
         ACCOUNT_INFO,
         CREATE_POST,
+        DELETE_POST
     }
 }

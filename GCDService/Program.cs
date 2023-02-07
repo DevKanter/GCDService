@@ -1,6 +1,8 @@
+using GCDService.Controllers.Post;
 using GCDService.DB;
 using GCDService.Helpers;
 using GCDService.Managers.Permission;
+using GCDService.Managers.Session;
 
 var MyAllowSpecificOrigins = "allowAll";
 var builder = WebApplication.CreateBuilder(args);
@@ -39,9 +41,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+RSAHelper.Initialize();
 WebsiteDB.Initialize();
 GameDB.Initialize();
+    
 
 PermissionManager.Initialize();
+SessionManager.Initialize();
 
 app.Run();

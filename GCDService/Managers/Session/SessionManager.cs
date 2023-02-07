@@ -1,4 +1,5 @@
 ﻿using GCDService.Managers.Permission;
+using Timer = System.Timers.Timer;
 
 namespace GCDService.Managers.Session
 {
@@ -6,15 +7,24 @@ namespace GCDService.Managers.Session
     {
         private static Random _r = new Random();
         private static Dictionary<long, UserSession> _activeSessions = new();
+        private static Timer _timer;
 
+        public static void Initialize()
+        {
+            _timer = new Timer(1000*30);
+            _timer.Elapsed += (o, e) => { Update(); };
+            _timer.AutoReset = true;
+            _timer.Start();
+
+        }
         public static void Update()
         {
-            foreach (var session in _activeSessions.Values.ToList())
-            {
-                if (session.EndTime < DateTime.UtcNow) continue;
+            //foreach (var session in _activeSessions.Values.ToList())
+            //{
+            //    if (session.EndTime < DateTime.UtcNow) continue;
 
-                RemoveUserSession(session);
-            }
+            //    RemoveUserSession(session);
+            //}
         }
         public static UserSession CreateUserSession(int accountID)
         {

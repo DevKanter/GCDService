@@ -1,10 +1,14 @@
 ﻿using GCDService.Controllers.Account;
+using GCDService.Controllers.Post;
 using GCDService.Managers.Permission;
 using GCDService.Managers.Request;
 using GCDService.Managers.Session;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Hosting;
 using Org.BouncyCastle.Asn1.X509;
 using System.Data;
+using System.IO.Pipelines;
+using System.Reflection.PortableExecutable;
 using static GCDService.DB.WebsiteDBResult;
 
 
@@ -43,7 +47,7 @@ namespace GCDService.DB
 
             if(!reader.HasRows)
             {
-                return REGISTER_ACCOUNT_ERROR_INSERT_ACCOUNT_TABLE;
+                return REGISTER_ACCOUNT_DATABASE_ERROR;
             }
             while (reader.Read())
             {
@@ -55,8 +59,10 @@ namespace GCDService.DB
             if (createUserResult != GameDBResult.SUCCESS) return REGISTER_ACCOUNT_ERROR_CREATING_GAME_ACCOUNT;
 
             SetSunUserAccount(accountID, userID);
-            AddAccountPermission(accountID, Permissions.CAN_LOGIN);
-            AddAccountPermission(accountID, Permissions.CAN_SEE_ACCOUNT_INFO);
+ 
+            WelcomeGift(userID);
+
+           
             return SUCCESS;
         }
         public static WebsiteDBResult SetSunUserAccount(int accountID,int userID)
@@ -69,14 +75,24 @@ namespace GCDService.DB
 
             con.Open();
             var reader = cmd.ExecuteNonQuery();
+            return SUCCESS;
+        }
+        public static WebsiteDBResult WelcomeGift(int userGuid)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_WelcomeGift", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@userId", SqlDbType.Int).Value = userGuid; ;
 
+            con.Open();
+            var reader = cmd.ExecuteNonQuery();
             return SUCCESS;
         }
         public static Permission[] GetAllPermissions()
         {
             using SqlConnection con = new SqlConnection(_connectionString);
             using SqlCommand cmd = new SqlCommand("S_GetAllPermissions", con);
-
+            cmd.CommandType = CommandType.StoredProcedure;
             var result = new List<Permission>();
 
             con.Open();
@@ -132,35 +148,114 @@ namespace GCDService.DB
             return (WebsiteDBResult)result;
         }
         
-        public static Permissions[] GetAccountPermissions(int accountID)
+        public static IEnumerable<Post> GetPosts(int postCategory)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_GetPosts", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+
+            cmd.Parameters.Add("@category", SqlDbType.Int).Value = postCategory;
+            var result = new List<Post>();
+
+            con.Open();
+            var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                var post = new Post()
+                {
+                    Id = reader.GetInt32(0),
+                    PostCategory = (PostCategory)reader.GetInt32(1),
+                    Title = reader.GetString(2),
+                    Description = reader.GetString(3),
+                    Content = reader.GetString(4),
+                    Posted = reader.GetDateTime(5),
+                    Modified = reader.GetDateTime(6),
+                    PostVisiblity = (PostVisibility)reader.GetInt32(7),
+                    PostedBy = reader.GetString(8)
+                };
+                result.Add(post);
+            }
+            return result;
+        }
+        public static WebsiteDBResult AddPost(CreatePostData post, int accountID)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_AddPost", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@postCategory", SqlDbType.Int).Value = (int)post.Category;
+            cmd.Parameters.Add("@title", SqlDbType.VarChar).Value = post.Title;
+            cmd.Parameters.Add("@description", SqlDbType.VarChar).Value = post.Description;
+            cmd.Parameters.Add("@content", SqlDbType.VarChar).Value = post.Content;
+            cmd.Parameters.Add("@postVisiblity", SqlDbType.Int).Value = (int)post.Visibility;
+            cmd.Parameters.Add("@postedBy", SqlDbType.Int).Value = accountID;
+
+            con.Open();
+            var result = cmd.ExecuteNonQuery();
+
+            return result == 1 ? SUCCESS : FAIL;
+        }
+
+        public static WebsiteDBResult DeletePost(int postID)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_DeletePost", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@postId", SqlDbType.Int).Value = postID;
+            con.Open();
+            var result = cmd.ExecuteNonQuery();
+            return result == 1 ? SUCCESS: FAIL;
+        }
+        public static Dictionary<int, List<int>> GetAccountTypePermissions()
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_GetAccountTypePermissions", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+
+            var result = new Dictionary<int, List<int>>();
+
+            con.Open();
+            var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var accountTypeId = reader.GetInt32(0);
+                var permissionId = reader.GetInt32(1);
+                if(!result.ContainsKey(accountTypeId)) result.Add(accountTypeId, new List<int>());
+
+                result[accountTypeId].Add(permissionId);
+            }
+
+            return result;
+        }
+        public static int[] GetAccountPermissionIds(int accountID)
         {
             using SqlConnection con = new SqlConnection(_connectionString);
             using SqlCommand cmd = new SqlCommand("S_GetAccountPermissions", con);
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
 
-            var result = new List<Permissions>();
+            var result = new List<int>();
             con.Open();
             var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                result.Add((Permissions)reader.GetInt32(0));
+                result.Add(reader.GetInt32(0));
             }
             return result.ToArray();
         }
-        public static Permissions[] GetRequestPermissions(AuthRequestType requestID)
+        public static int[] GetRequestPermissionIds(AuthRequestType requestID)
         {
             using SqlConnection con = new SqlConnection(_connectionString);
             using SqlCommand cmd = new SqlCommand("S_GetRequestPermissions", con);
             cmd.CommandType = CommandType.StoredProcedure;
             cmd.Parameters.Add("@requestID", SqlDbType.Int).Value = (int)requestID;
 
-            var result = new List<Permissions>();
+            var result = new List<int>();
             con.Open();
             var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                result.Add((Permissions)reader.GetInt32(0));
+                result.Add(reader.GetInt32(0));
             }
             return result.ToArray();
         }
@@ -184,10 +279,10 @@ namespace GCDService.DB
             {
                 var accountID = reader.GetInt32(0);
 
-                if(CheckAccountPermission(accountID,Permissions.CAN_LOGIN)!= SUCCESS)
+                if(!PermissionManager.IsPermitted(accountID,AuthRequestType.LOGIN))
                 {
                     Console.WriteLine($"Account[{accountID}] does not have the permission to login!");
-                    return FAIL;
+                    return ERROR_NOT_PERMITTED;
                 }
 
                 session = SessionManager.CreateUserSession(accountID);
@@ -197,6 +292,27 @@ namespace GCDService.DB
             return FAIL;
         }
         
+        public static WebsiteDBResult GetAccountInfo(int accountID, out GetAccountInfoResponse? response)
+        {
+            response = null;
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_GetAccountInfo", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
+
+            con.Open();
+            var reader = cmd.ExecuteReader();
+            if (!reader.HasRows) return ERROR_RETRIEVING_ACCOUNT_INFO;
+            while (reader.Read())
+            {
+                response = new GetAccountInfoResponse()
+                {
+                    AccountType = reader.GetInt32(0),
+                    Nickname = reader.GetString(1)
+                };
+            }
+            return SUCCESS;
+        }
         
     }
 
@@ -205,12 +321,15 @@ namespace GCDService.DB
         FAIL = -1,
         SUCCESS,
 
-        REGISTER_ACCOUNT_ID_ALREADY_IN_USER, //FIX used in S_RegisterAccount
-        REGISTER_ACCOUNT_ERROR_INSERT_ACCOUNT_TABLE, //FIX used in S_RegisterAccount
+        REGISTER_ACCOUNT_ID_ALREADY_IN_USE, //FIX used in S_RegisterAccount
+        REGISTER_ACCOUNT_DATABASE_ERROR, //FIX used in S_RegisterAccount
 
         REGISTER_ACCOUNT_ERROR_CREATING_GAME_ACCOUNT, 
         LOGIN_ACCOUNT_ID_NOT_FOUND,
 
         ADD_PERMISSION_ALREADY_EXISTS,
+        ERROR_RETRIEVING_ACCOUNT_INFO,
+
+        ERROR_NOT_PERMITTED,
     }
 }

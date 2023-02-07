@@ -37,7 +37,7 @@ namespace GCDService.Controllers.Account
             var userRegisterRequest = CryptManager.DecryptRequest<UserRegisterRequest>(crypt);
             
             var result = WebsiteDB.RegisterAccount(userRegisterRequest, out var accountID);
-
+            Console.WriteLine($"RegisterdUser[{userRegisterRequest.Username}] Result[{result}]");
             return new UserRegisterResponse() { Success = true };
         }
 
@@ -48,6 +48,11 @@ namespace GCDService.Controllers.Account
 
             var result = WebsiteDB.LoginAccount(userLoginRequest, out var session);
 
+            Console.WriteLine($"LoggedIn User[{userLoginRequest.Username}] Result[{result}]");
+
+
+            if (result == WebsiteDBResult.SUCCESS)
+                session.OnLogin();
             return new UserLoginResponse()
             {
                 ResponseCode = (int) result,
@@ -59,7 +64,7 @@ namespace GCDService.Controllers.Account
         [HttpPost]
         public UserLogoutResponse Logout([FromBody] CryptRequest crypt)
         {
-            var request = RequestManager.ParseAndAuthenticate<UserLogoutRequest>(crypt);
+            var request = RequestManager.ParseAndAuthenticate<UserLogoutRequest>(crypt, out var session);
 
 
             return new UserLogoutResponse()
@@ -71,9 +76,14 @@ namespace GCDService.Controllers.Account
         [HttpPost]
         public GetAccountInfoResponse GetInfo([FromBody] CryptRequest crypt)
         {
-            var request = RequestManager.ParseAndAuthenticate<GetAccountInfoRequest>(crypt);
-            return new GetAccountInfoResponse() { AccountInfo = "MyAccountInfo" };
+            var request = RequestManager.ParseAndAuthenticate<GetAccountInfoRequest>(crypt, out var session);
+            if(request == null) throw new ArgumentNullException(nameof(request));
+
+            var result = WebsiteDB.GetAccountInfo(session!.AccountID, out var response);
+            if (result != WebsiteDBResult.SUCCESS) throw new InvalidOperationException();
+            return response!;
         }
+
     }
 
 

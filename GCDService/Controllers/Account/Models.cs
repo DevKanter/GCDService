@@ -33,7 +33,8 @@ namespace GCDService.Controllers.Account
 
     public class GetAccountInfoResponse
     {
-        public string? AccountInfo { get; set; }
+        public int AccountType { get; set; }
+        public string Nickname { get; set; } = string.Empty;
     }
 
     public class UserLogoutRequest: AuthRequest
@@ -43,5 +44,14 @@ namespace GCDService.Controllers.Account
     public class UserLogoutResponse
     {
         public bool Success { get; set; }
+    }
+
+    public enum AccountType
+    {
+        NONE,
+        SUPER_ADMIN,
+        WEBSITE_ADMIN,
+        WEBSITE_MOD,
+        MEMBER
     }
 }

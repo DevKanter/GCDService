@@ -11,7 +11,7 @@ namespace GCDService.Managers
             if (request.Data == null) throw new ArgumentException("invalid CryptRequest object!");
             var json = RSAHelper.Decrypt(request.Data);
             var decryptRequest = JsonSerializer.Deserialize<T>(json);
-            if (decryptRequest == null) throw new ArgumentException("invalid object!");
+            if (decryptRequest == null) throw new ArgumentException("invalid Request object!");
             return decryptRequest;
         }
     }
