@@ -55,7 +55,7 @@ namespace GCDService.Managers.Permission
             {
                 if (accountInfo!.AccountType == 1) return true;
 
-                permissions.AddRange(_accountTypePermissions[accountInfo.AccountType]);
+                permissions.AddRange(_accountTypePermissions[(int) accountInfo.AccountType!]);
             }
 
             foreach (var requiredPermission in requiredPermissions)

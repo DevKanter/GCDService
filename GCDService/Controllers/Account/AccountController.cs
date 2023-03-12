@@ -37,8 +37,14 @@ namespace GCDService.Controllers.Account
             var userRegisterRequest = CryptManager.DecryptRequest<UserRegisterRequest>(crypt);
             
             var result = WebsiteDB.RegisterAccount(userRegisterRequest, out var accountID);
-            Console.WriteLine($"RegisterdUser[{userRegisterRequest.Username}] Result[{result}]");
-            return new UserRegisterResponse() { Success = true };
+            Console.WriteLine($"RegisteredUser[{userRegisterRequest.Username}] Result[{result}]");
+
+            
+            return new UserRegisterResponse()
+            {
+                Success = result == WebsiteDBResult.SUCCESS,
+                Error = WebsiteDB.GetErrorMessage(result)
+            };
         }
 
         [HttpPost]
@@ -52,12 +58,13 @@ namespace GCDService.Controllers.Account
 
 
             if (result == WebsiteDBResult.SUCCESS)
-                session.OnLogin();
+                session!.OnLogin();
+
             return new UserLoginResponse()
             {
-                ResponseCode = (int) result,
+                Success = result == WebsiteDBResult.SUCCESS,
                 SessionID = session?.SessionID.ToString(),
-
+                Error = WebsiteDB.GetErrorMessage(result)
             };
         }
 
@@ -69,19 +76,38 @@ namespace GCDService.Controllers.Account
 
             return new UserLogoutResponse()
             {
-                Success = SessionManager.RemoveUserSession(long.Parse(request!.SessionID))
+                Success = SessionManager.RemoveUserSession(long.Parse(request!.SessionID)),
+                Error = "THIS SHOULD NEVER HAPPEN LOL!"
             };
         } 
         
         [HttpPost]
         public GetAccountInfoResponse GetInfo([FromBody] CryptRequest crypt)
         {
-            var request = RequestManager.ParseAndAuthenticate<GetAccountInfoRequest>(crypt, out var session);
-            if(request == null) throw new ArgumentNullException(nameof(request));
+            RequestManager.ParseAndAuthenticate<GetAccountInfoRequest>(crypt, out var session);
 
             var result = WebsiteDB.GetAccountInfo(session!.AccountID, out var response);
-            if (result != WebsiteDBResult.SUCCESS) throw new InvalidOperationException();
+            if (result != WebsiteDBResult.SUCCESS)
+                return new GetAccountInfoResponse()
+                {
+                    Error = WebsiteDB.GetErrorMessage(result),
+                    Success = false
+                };
             return response!;
+        }
+
+        [HttpPost]
+        public CharacterListResponse GetCharacterList([FromBody] CryptRequest crypt)
+        {
+            RequestManager.ParseAndAuthenticate<GetAccountInfoRequest>(crypt, out var session);
+
+            var result = WebsiteDB.GetCharacterList(session.AccountID, out var charList);
+            return new CharacterListResponse()
+            {
+                Success = result == WebsiteDBResult.SUCCESS,
+                Error = WebsiteDB.GetErrorMessage(result),
+                CharacterList = charList
+            };
         }
 
     }

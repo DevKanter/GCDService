@@ -1,10 +1,14 @@
-﻿using GCDService.Controllers.Account;
+﻿using Azure;
+using GCDService.Controllers.Account;
 using GCDService.Controllers.Post;
+using GCDService.Controllers.Product;
+using GCDService.Managers.Cash;
 using GCDService.Managers.Permission;
 using GCDService.Managers.Request;
 using GCDService.Managers.Session;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Identity.Client;
 using Org.BouncyCastle.Asn1.X509;
 using System.Data;
 using System.IO.Pipelines;
@@ -43,15 +47,20 @@ namespace GCDService.DB
             cmd.Parameters.Add("@email", SqlDbType.NVarChar).Value = request.Email;
 
             con.Open();
-            var reader = cmd.ExecuteReader();
 
-            if(!reader.HasRows)
+            using (var reader = cmd.ExecuteReader())
             {
-                return REGISTER_ACCOUNT_DATABASE_ERROR;
+                while (reader.Read())
+                {
+                    accountID = reader.GetInt32(0);
+
+                }
             }
-            while (reader.Read())
+
+            var result = (WebsiteDBResult)(int)returnParameter.Value;
+            if (result != SUCCESS)
             {
-                accountID = reader.GetInt32(0);
+                return result;
             }
 
             var createUserResult = GameDB.CreateUser(request.Username!, request.Password!, out var userID);
@@ -148,13 +157,14 @@ namespace GCDService.DB
             return (WebsiteDBResult)result;
         }
         
-        public static IEnumerable<Post> GetPosts(int postCategory)
+        public static IEnumerable<Post> GetPosts(PostCategory postCategory, bool isDev=false)
         {
             using SqlConnection con = new SqlConnection(_connectionString);
             using SqlCommand cmd = new SqlCommand("S_GetPosts", con);
             cmd.CommandType = CommandType.StoredProcedure;
 
-            cmd.Parameters.Add("@category", SqlDbType.Int).Value = postCategory;
+            cmd.Parameters.Add("@category", SqlDbType.Int).Value =(int) postCategory;
+            cmd.Parameters.Add("@isDev",SqlDbType.Bit).Value = isDev;
             var result = new List<Post>();
 
             con.Open();
@@ -171,7 +181,7 @@ namespace GCDService.DB
                     Content = reader.GetString(4),
                     Posted = reader.GetDateTime(5),
                     Modified = reader.GetDateTime(6),
-                    PostVisiblity = (PostVisibility)reader.GetInt32(7),
+                    PostVisibility = (PostVisibility)reader.GetInt32(7),
                     PostedBy = reader.GetString(8)
                 };
                 result.Add(post);
@@ -187,7 +197,7 @@ namespace GCDService.DB
             cmd.Parameters.Add("@title", SqlDbType.VarChar).Value = post.Title;
             cmd.Parameters.Add("@description", SqlDbType.VarChar).Value = post.Description;
             cmd.Parameters.Add("@content", SqlDbType.VarChar).Value = post.Content;
-            cmd.Parameters.Add("@postVisiblity", SqlDbType.Int).Value = (int)post.Visibility;
+            cmd.Parameters.Add("@postVisibility", SqlDbType.Int).Value = (int)post.Visibility;
             cmd.Parameters.Add("@postedBy", SqlDbType.Int).Value = accountID;
 
             con.Open();
@@ -205,6 +215,24 @@ namespace GCDService.DB
             con.Open();
             var result = cmd.ExecuteNonQuery();
             return result == 1 ? SUCCESS: FAIL;
+        }
+        
+        public static WebsiteDBResult EditPost(EditPostData post)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_EditPost", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+
+            cmd.Parameters.Add("@id", SqlDbType.VarChar).Value = post.PostId;
+            cmd.Parameters.Add("@title", SqlDbType.VarChar).Value = post.Title;
+            cmd.Parameters.Add("@description", SqlDbType.VarChar).Value = post.Description;
+            cmd.Parameters.Add("@content", SqlDbType.VarChar).Value = post.Content;
+            cmd.Parameters.Add("@visibility", SqlDbType.Int).Value = (int) post.Visibility;
+            con.Open();
+            var result = cmd.ExecuteNonQuery();
+
+            return result == 1 ? SUCCESS : FAIL;
+
         }
         public static Dictionary<int, List<int>> GetAccountTypePermissions()
         {
@@ -286,6 +314,7 @@ namespace GCDService.DB
                 }
 
                 session = SessionManager.CreateUserSession(accountID);
+                CashProductManager.OnUserLogin(session);
                 return SUCCESS;
             }
             
@@ -308,12 +337,152 @@ namespace GCDService.DB
                 response = new GetAccountInfoResponse()
                 {
                     AccountType = reader.GetInt32(0),
-                    Nickname = reader.GetString(1)
+                    Nickname = reader.GetString(1),
+                    Success = true
                 };
             }
             return SUCCESS;
         }
-        
+
+        public static CashProduct[] GetCashProductList() {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_CashProduct_Select", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+
+            var result = new List<CashProduct>();
+            con.Open();
+            var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var product = new CashProduct()
+                {
+                    Id = reader.GetInt32(0),
+                    Amount = reader.GetInt32(1),
+                    Price = reader.GetInt32(2),
+                    ProductName = reader.GetString(3)
+                };
+
+                result.Add(product);
+            }
+
+            return result.ToArray();
+        }
+
+        public static int GetCashAmount(int accountID)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_GetCashBalance", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
+
+            con.Open();
+            var reader = cmd.ExecuteReader();
+            if (!reader.HasRows) return 0;
+            while (reader.Read())
+            {
+                var amount = reader.GetInt32(0);
+                return amount;
+            }
+
+            return 0;
+        }
+
+        public static WebsiteDBResult IncreaseCashAmount(int accountID, int amount)
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_IncreaseCashBalance", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
+            cmd.Parameters.Add("@incAmount", SqlDbType.Int).Value = amount;
+
+            con.Open();
+
+            var result = cmd.ExecuteNonQuery();
+
+            return result == 1 ? SUCCESS : FAIL;
+
+        }
+        public static void LogCashProductCheckoutProcess(CashProductCheckoutProcess process, CheckoutProcessEndReason reason,string message = "")
+        {
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_LOG_CashProductCheckout", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@cashProductId", SqlDbType.Int).Value = process.Product.Id;
+            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = process.Session.AccountID;
+            cmd.Parameters.Add("@checkoutState", SqlDbType.VarChar).Value = process.State.ToString();
+            cmd.Parameters.Add("@requestTime", SqlDbType.DateTime).Value = process.ApprovedRequest?.TransactionDate;
+            cmd.Parameters.Add("@transactionId", SqlDbType.VarChar).Value = process.ApprovedRequest?.TransactionId;
+            cmd.Parameters.Add("@transactionStatus", SqlDbType.VarChar).Value = process.GetTransactionStatus().ToString();
+            cmd.Parameters.Add("@payerId", SqlDbType.VarChar).Value = process.ApprovedRequest?.Payer?.PayerId;
+            cmd.Parameters.Add("@payerEmail", SqlDbType.VarChar).Value = process.ApprovedRequest?.Payer?.Email;
+            cmd.Parameters.Add("@logmessage", SqlDbType.VarChar).Value = message;
+
+            con.Open();
+
+            cmd.ExecuteNonQuery();
+        }
+
+        public static WebsiteDBResult GetCharacterList(int accountID, out IEnumerable<CharacterListEntry> characterList)
+        {
+            characterList = Enumerable.Empty<CharacterListEntry>();
+            using SqlConnection con = new SqlConnection(_connectionString);
+            using SqlCommand cmd = new SqlCommand("S_GetCharacterList", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
+
+            con.Open();
+            var reader = cmd.ExecuteReader();
+
+            if (!reader.HasRows) return NO_CHARACTERS_FOUND_FOR_ACCOUNT;
+
+            var result = new List<CharacterListEntry>();
+            while (reader.Read())
+            {
+                var entry = new CharacterListEntry()
+                {
+                    ClassCode = reader.GetByte(0),
+                    Name = reader.GetString(1),
+                    Level = reader.GetInt16(2)
+                };
+                result.Add(entry);
+            }
+
+            characterList = result;
+            return SUCCESS;
+        }
+
+        public static string? GetErrorMessage(WebsiteDBResult result)
+        {
+            switch (result)
+            {
+                case FAIL:
+                    return "Failed!";
+                case SUCCESS:
+                    return "Success!";
+                case REGISTER_ACCOUNT_ID_ALREADY_IN_USE:
+                    return "Username is already taken!";
+                case REGISTER_ACCOUNT_DATABASE_ERROR:
+                    return "Database error!";
+                case REGISTER_ACCOUNT_ERROR_CREATING_GAME_ACCOUNT:
+                    return "Failed to create game account!";
+                case LOGIN_ACCOUNT_ID_NOT_FOUND:
+                    return "Username could not be found!";
+                case ADD_PERMISSION_ALREADY_EXISTS:
+                    break;
+                case ERROR_RETRIEVING_ACCOUNT_INFO:
+                    return "Could not retrieve account info!";
+                case ERROR_NOT_PERMITTED:
+                    return "Not authorized!";
+                case REGISTER_ACCOUNT_EMAIL_ALREADY_IN_USE:
+                    return "Email is already registered";
+                case NO_CHARACTERS_FOUND_FOR_ACCOUNT:
+                    return "This account has no characters yet.";
+                default:
+                    return null;
+            }
+
+            return null;
+        }
     }
 
     public enum WebsiteDBResult
@@ -331,5 +500,9 @@ namespace GCDService.DB
         ERROR_RETRIEVING_ACCOUNT_INFO,
 
         ERROR_NOT_PERMITTED,
+
+        REGISTER_ACCOUNT_EMAIL_ALREADY_IN_USE,
+
+        NO_CHARACTERS_FOUND_FOR_ACCOUNT
     }
 }

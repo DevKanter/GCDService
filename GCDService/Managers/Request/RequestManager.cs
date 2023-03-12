@@ -18,7 +18,7 @@ namespace GCDService.Managers.Request
             return authType;
         }
 
-        public static T? ParseAndAuthenticate<T>(CryptRequest request, out UserSession? session)
+        public static T ParseAndAuthenticate<T>(CryptRequest request, out UserSession session)
         {
             session = null;
             var decryptRequest = CryptManager.DecryptRequest<T>(request);
@@ -26,13 +26,13 @@ namespace GCDService.Managers.Request
             if (!SessionManager.TryGetSession(long.Parse(authRequest.SessionID), out session))
             {
                 Console.WriteLine($"Request[{typeof(T)}] was requested without active session!");
-                return default;
+                throw new Exception("Not Authorized!");
             }
 
             if(session!.State == SessionState.EXPIRED)
             {
                 Console.WriteLine($"An expired session was still present in active sessions!!!!");
-                return default;
+                throw new Exception("Not Authorized!");
             }
 
             var requestType = GetAuthRequestType(typeof(T));
@@ -40,9 +40,9 @@ namespace GCDService.Managers.Request
             if (!PermissionManager.IsPermitted(session.AccountID, requestType))
             {
                 Console.WriteLine($"Request[{typeof(T)}] is not permitted for Account[{session.AccountID}]!");
-                return default;
+                throw new Exception("Not Authorized!");
             }
-
+            if (decryptRequest == null) throw new Exception("Request cannot be null!");
             return decryptRequest;
         }
         public static bool Authenticate<T>(AuthRequest request, out UserSession session)
