@@ -24,9 +24,13 @@ namespace GCDService.DB
         public static void Initialize() {
             var sb = new SqlConnectionStringBuilder();
             sb.UserID = "sa";
+
             sb.Password = "1yQA2xWS3cED4vRF";
-            //sb.DataSource = "ALEXDEVLAPTOP";
+#if DEBUG
+            sb.DataSource = "ALEXDEVLAPTOP";
+#else
             sb.DataSource = "VPSNZITZ1671265\\SQLEXPRESS";
+#endif
             sb.InitialCatalog = "GCD_Website";
             sb.TrustServerCertificate = true;
              _connectionString = sb.ToString();
