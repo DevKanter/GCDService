@@ -41,7 +41,7 @@ namespace GCDService.Controllers.Post
         {
             var authSuccess = RequestManager.Authenticate<CreatePostRequest>(request, out var session);
             if (!authSuccess) throw new Exception("Not Authorized!");
-            var result = WebsiteDB.AddPost(request!.Data,session!.AccountID);
+            var result = WebsiteDB.AddPost(request.Data!,session.AccountID);
 
             return new CreatePostResponse() { Success = result == WebsiteDBResult.SUCCESS };
         }

@@ -6,10 +6,4 @@
         public string Name { get; init; } = "INVALID";
 
     }
-    public enum Permissions
-    {
-        NONE,
-        CAN_LOGIN,
-        CAN_SEE_ACCOUNT_INFO,
-    }
 }

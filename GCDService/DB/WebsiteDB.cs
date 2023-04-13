@@ -21,20 +21,9 @@ namespace GCDService.DB
     public static class WebsiteDB
     {
         private static string? _connectionString;
-        public static void Initialize() {
-            var sb = new SqlConnectionStringBuilder();
-            sb.UserID = "sa";
-
-            sb.Password = "1yQA2xWS3cED4vRF";
-#if DEBUG
-            sb.DataSource = "ALEXDEVLAPTOP";
-#else
-            sb.DataSource = "VPSNZITZ1671265\\SQLEXPRESS";
-#endif
-            sb.InitialCatalog = "GCD_Website";
-            sb.TrustServerCertificate = true;
-             _connectionString = sb.ToString();
-
+        public static void Initialize()
+        {
+            _connectionString = DBHelper.GetConnectionString(DBType.WEBSITE);
         }
 
         public static WebsiteDBResult RegisterAccount(UserRegisterRequest request, out int accountID)
@@ -67,13 +56,13 @@ namespace GCDService.DB
                 return result;
             }
 
-            var createUserResult = GameDB.CreateUser(request.Username!, request.Password!, out var userID);
+            //var createUserResult = GameDB.CreateUser(request.Username!, request.Password!, out var userID);
 
-            if (createUserResult != GameDBResult.SUCCESS) return REGISTER_ACCOUNT_ERROR_CREATING_GAME_ACCOUNT;
+            //if (createUserResult != GameDBResult.SUCCESS) return REGISTER_ACCOUNT_ERROR_CREATING_GAME_ACCOUNT;
 
-            SetSunUserAccount(accountID, userID);
+            //SetSunUserAccount(accountID, userID);
  
-            WelcomeGift(userID);
+            //WelcomeGift(userID);
 
            
             return SUCCESS;
@@ -122,45 +111,7 @@ namespace GCDService.DB
             }
             return result.ToArray();
         }
-        public static WebsiteDBResult AddAccountPermission(int accountID,Permissions permission)
-        {
-            using SqlConnection con = new SqlConnection(_connectionString);
-            using SqlCommand cmd = new SqlCommand("S_AddAccountPermission", con);
-            cmd.CommandType = CommandType.StoredProcedure;
-            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
-            cmd.Parameters.Add("@permissionID", SqlDbType.Int).Value = (int) permission;
-            var returnParameter = cmd.Parameters.Add("@ReturnVal", SqlDbType.Int);
-            returnParameter.Direction = ParameterDirection.ReturnValue;
 
-            con.Open();
-            cmd.ExecuteNonQuery();
-
-            var result =(int) returnParameter.Value;
-
-            if (result != 0) Console.WriteLine($"Permission[{permission}] was not added to Account[{accountID}] Error[{result}]");
-
-            return (WebsiteDBResult) result;
-        }
-        public static WebsiteDBResult CheckAccountPermission(int accountID,Permissions permission)
-        {
-            using SqlConnection con = new SqlConnection(_connectionString);
-            using SqlCommand cmd = new SqlCommand("S_CheckAccountPermission", con);
-            cmd.CommandType = CommandType.StoredProcedure;
-            cmd.Parameters.Add("@accountID", SqlDbType.Int).Value = accountID;
-            cmd.Parameters.Add("@permissionID", SqlDbType.Int).Value = (int)permission;
-            var returnParameter = cmd.Parameters.Add("@ReturnVal", SqlDbType.Int);
-            returnParameter.Direction = ParameterDirection.ReturnValue;
-
-            con.Open();
-            cmd.ExecuteNonQuery();
-
-            var result = (int)returnParameter.Value;
-
-            if (result != 0) Console.WriteLine($"Account[{accountID}] tried unpermissioned action[{permission}]");
-
-            return (WebsiteDBResult)result;
-        }
-        
         public static IEnumerable<Post> GetPosts(PostCategory postCategory, bool isDev=false)
         {
             using SqlConnection con = new SqlConnection(_connectionString);

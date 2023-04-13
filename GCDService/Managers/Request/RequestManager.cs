@@ -1,4 +1,6 @@
 ﻿using GCDService.Controllers.Account;
+using GCDService.Controllers.Post;
+using GCDService.Controllers.Product;
 using GCDService.Managers.Permission;
 using GCDService.Managers.Session;
 
@@ -9,7 +11,12 @@ namespace GCDService.Managers.Request
         private static Dictionary<Type, AuthRequestType> _requestRef = new()
         {
             {typeof(UserLoginRequest),AuthRequestType.LOGIN},
-            {typeof(GetAccountInfoRequest),AuthRequestType.ACCOUNT_INFO}
+            {typeof(GetAccountInfoRequest),AuthRequestType.ACCOUNT_INFO_GET},
+            {typeof(CreatePostRequest),AuthRequestType.CREATE_POST},
+            {typeof(DeletePostRequest),AuthRequestType.DELETE_POST},
+            {typeof(EditPostRequest),AuthRequestType.EDIT_POST},
+            {typeof(GetCashAmountRequest),AuthRequestType.ACCOUNT_CASH_GET},
+            {typeof(CharacterListRequest),AuthRequestType.ACCOUNT_CHARS_GET}
         };
         private static AuthRequestType GetAuthRequestType(Type requestType)
         {

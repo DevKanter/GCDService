@@ -2,6 +2,7 @@ using GCDService.Controllers.Post;
 using GCDService.DB;
 using GCDService.Helpers;
 using GCDService.Managers.Cash;
+using GCDService.Managers.Events;
 using GCDService.Managers.Permission;
 using GCDService.Managers.Session;
 
@@ -45,10 +46,12 @@ app.MapControllers();
 RSAHelper.Initialize();
 WebsiteDB.Initialize();
 GameDB.Initialize();
+EventDB.Initialize();
     
 
 PermissionManager.Initialize();
 SessionManager.Initialize();
 CashProductManager.Initialize();
+GameEventManager.Initialize();
 
 app.Run();
